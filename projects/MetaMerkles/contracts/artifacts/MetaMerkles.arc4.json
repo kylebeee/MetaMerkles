@@ -1,0 +1,239 @@
+{
+  "name": "MetaMerkles",
+  "desc": "",
+  "methods": [
+    {
+      "name": "addRoot",
+      "desc": "Creates two boxes and adds a merkle rootusing a`RootKey`to the root box map and also a list type to themetadata attached to the root in the data box map",
+      "args": [
+        {
+          "name": "pmt",
+          "type": "pay",
+          "desc": "the fee to cover box storage allocation"
+        },
+        {
+          "name": "hashedRoot",
+          "type": "byte[32]",
+          "desc": "a sha256'd 32 byte merkle tree root"
+        },
+        {
+          "name": "type",
+          "type": "uint64",
+          "desc": "an index of the`RootType`enum of the type of the list"
+        }
+      ],
+      "returns": {
+        "type": "void"
+      }
+    },
+    {
+      "name": "deleteRoot",
+      "desc": "Deletes the merkle root from the root box map",
+      "args": [
+        {
+          "name": "hashedRoot",
+          "type": "byte[32]",
+          "desc": "the sha256'd 32 byte merkle tree root"
+        }
+      ],
+      "returns": {
+        "type": "void"
+      }
+    },
+    {
+      "name": "addData",
+      "desc": "Registers a key & value in the data box map thatcorresponds to a merkle root in the root box map",
+      "args": [
+        {
+          "name": "pmt",
+          "type": "pay",
+          "desc": "the payment to cover the increased mbr of adding to box storage"
+        },
+        {
+          "name": "hashedRoot",
+          "type": "byte[32]",
+          "desc": "the sha256'd 32 byte merkle tree root"
+        },
+        {
+          "name": "key",
+          "type": "string",
+          "desc": "the metadata key eg.`Royalty`"
+        },
+        {
+          "name": "value",
+          "type": "string",
+          "desc": "the metadata value eg.`5`encoded as a bytestring for 5%"
+        }
+      ],
+      "returns": {
+        "type": "void"
+      }
+    },
+    {
+      "name": "deleteData",
+      "desc": "Deletes a metadata key & value pair from the data box map",
+      "args": [
+        {
+          "name": "hashedRoot",
+          "type": "byte[32]",
+          "desc": "the sha256'd 32 byte merkle tree root"
+        },
+        {
+          "name": "key",
+          "type": "string",
+          "desc": "the metadata key you want to remove"
+        }
+      ],
+      "returns": {
+        "type": "void"
+      }
+    },
+    {
+      "name": "verifyAsset",
+      "desc": "verify an inclusion in a merkle tree & ensure the merkle treeis in reference to a group of asset IDs",
+      "args": [
+        {
+          "name": "address",
+          "type": "address",
+          "desc": "the address of the merkle tree root creator"
+        },
+        {
+          "name": "hashedRoot",
+          "type": "byte[32]",
+          "desc": "the sha256'd 32 byte merkle tree root"
+        },
+        {
+          "name": "proof",
+          "type": "string",
+          "desc": "the proof for the asset"
+        },
+        {
+          "name": "verifyingAsset",
+          "type": "uint64",
+          "desc": "the`assetID`we're checking against the merkle root"
+        }
+      ],
+      "returns": {
+        "type": "bool",
+        "desc": "a boolean indicating the check passed or failed"
+      }
+    },
+    {
+      "name": "verifyAddress",
+      "desc": "verify an inclusion in a merkle tree & ensure the merkle treeis in reference to a group of addresses",
+      "args": [
+        {
+          "name": "address",
+          "type": "address",
+          "desc": "the address of the merkle tree root creator"
+        },
+        {
+          "name": "hashedRoot",
+          "type": "byte[32]",
+          "desc": "the sha256'd 32 byte merkle tree root"
+        },
+        {
+          "name": "proof",
+          "type": "string",
+          "desc": "the proof for the address"
+        },
+        {
+          "name": "verifyingAddress",
+          "type": "address",
+          "desc": "the`Address`we're checking against the merkle root"
+        }
+      ],
+      "returns": {
+        "type": "bool",
+        "desc": "a boolean indicating the check passed or failed"
+      }
+    },
+    {
+      "name": "verifyApp",
+      "desc": "verify an inclusion in a merkle tree & ensure the merkle treeis in reference to a group of appIDs",
+      "args": [
+        {
+          "name": "address",
+          "type": "address",
+          "desc": "the address of the merkle tree root creator"
+        },
+        {
+          "name": "hashedRoot",
+          "type": "byte[32]",
+          "desc": "the sha256'd 32 byte merkle tree root"
+        },
+        {
+          "name": "proof",
+          "type": "string",
+          "desc": "the proof for the app"
+        },
+        {
+          "name": "verifyingApp",
+          "type": "uint64",
+          "desc": "the`AppID`we're checking against the merkle root"
+        }
+      ],
+      "returns": {
+        "type": "bool",
+        "desc": "a boolean indicating the check passed or failed"
+      }
+    },
+    {
+      "name": "verify",
+      "desc": "verify an inclusion in a merkle tree",
+      "args": [
+        {
+          "name": "hashedRoot",
+          "type": "byte[32]",
+          "desc": "the sha256'd 32 byte merkle tree root"
+        },
+        {
+          "name": "proof",
+          "type": "string",
+          "desc": "the proof the hash is included"
+        },
+        {
+          "name": "hash",
+          "type": "string",
+          "desc": "the hash of the info being verified"
+        }
+      ],
+      "returns": {
+        "type": "bool",
+        "desc": "a boolean indicating the check passed or failed"
+      }
+    },
+    {
+      "name": "read",
+      "desc": "fetch a metadata property",
+      "args": [
+        {
+          "name": "address",
+          "type": "address",
+          "desc": "the address of the merkle tree root creator"
+        },
+        {
+          "name": "hashedRoot",
+          "type": "byte[32]",
+          "desc": "the sha256'd 32 byte merkle tree root"
+        },
+        {
+          "name": "key",
+          "type": "string",
+          "desc": "the metadata key eg.`Royalty`"
+        }
+      ],
+      "returns": {
+        "type": "string",
+        "desc": "the value set eg.`5`encoded as a bytestring for 5%"
+      }
+    },
+    {
+      "name": "createApplication",
+      "args": [],
+      "returns": {
+        "type": "void"
+      }
+    }
+  ]
+}
