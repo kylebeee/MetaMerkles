@@ -3,11 +3,13 @@ import { Contract } from '@algorandfoundation/tealscript';
 const hashLength = 32;
 const rootKeyLength = 64;
 const truncatedKeyLength = 32;
-const typeKeyByteLength = 4;
-const typeValueByteLength = 8;
+const schemaKeyByteLength = 11;
+const listTypeKeyByteLength = 9;
+const uint64ByteLength = 8;
 
-const rootMinBalance: uint64 = 25_00 + (400 * rootKeyLength);
-const dataTypeMinBalance: uint64 = 25_00 + (400 * ((truncatedKeyLength + typeKeyByteLength) + typeValueByteLength));
+const rootMinBalance: uint64 = 2_500 + (400 * rootKeyLength);
+const schemaMinBalance: uint64 = 2_500 + (400 * ((truncatedKeyLength + schemaKeyByteLength) + uint64ByteLength));
+const listTypeMinBalance: uint64 = 2_500 + (400 * ((truncatedKeyLength + listTypeKeyByteLength) + uint64ByteLength));
 
 type bytes16 = StaticArray<byte, 16>;
 
@@ -15,11 +17,76 @@ interface RootKey { address: Address, root: bytes32 };
 
 interface DataKey { address: bytes16, root: bytes16, key: string };
 
+/**
+ * 
+ * Schema's are onchain convenience indicators about the
+ * underlying structure of the data hashes they can
+ * help ensure consumers of contracts are given
+ * the proper structure to create leaf hashes for a given tree
+*/ 
+
 // TODO: replace with enum when tealscript supports it
-const RootTypeMixed = 0;
-const RootTypeAsset = 1;
-const RootTypeAddress = 2;
-const RootTypeApp = 3;
+
+/** 
+ * Unspecified is a special value that, on verified reads, specifies the caller doesnt care what the schema is
+ * this value should not be used when adding merkle roots to the contract
+*/
+const SchemaTypeUnspecified = 0;
+
+/**
+ * Hashes are byte strings
+ * 
+ * eg. a 32byte address
+ */
+const SchemaTypeString = 1;
+
+/**
+ * Hashes are uint64's that represent something like asa IDs or app IDs
+ * 
+ * eg. 00000000
+ */
+const SchemaTypeUint64 = 2;
+
+/**
+ * Hashes are double uint64's, first 8 bytes represent something like an asa ID, latter 8 represent something like an amount
+ * 
+ * eg. 0000000000000000
+ */
+const SchemaTypeDoubleUint64 = 3;
+
+/**
+ * List Types are required metadata for roots
+ * that inform other contracts about the intended use
+ * of the list when metadata is being consumed.
+ * List types are necessary because creators will have
+ * many arbitrary & overlapping groups depending on
+ * their personal needs, because an asset could be 
+ * included in a number of lists for any given reason
+ * we need a way to ensure that the root & proof that 
+ * are provided to a contract that utilizes `MetaMerkles`
+ * can also verify that the list is being used for its 
+ * intended purpose.
+ * 
+ * eg. without list types, if a creator had their collection
+ * traits on chain, rather than submitting the proper merkle
+ * tree root & proof with the given meta key `royalties`
+ * a malicious actor could submit the root & proof for an 
+ * adjacent group whose purpose is trait declaration.
+ * The calling contract would then be unable to find a `royalties` 
+ * value and thus would settle for some default value or zero.
+ */
+
+// TODO: replace with enum when tealscript supports it
+
+// Unspecified is a special value that, on verified reads, specifies the caller doesnt care what the list type is
+// this value should not be used when adding merkle roots to the contract
+const ListTypeUnspecified = 0;
+// Collection list types represent a collection of asset IDs onchain
+const ListTypeCollection = 1;
+// Trait list types represent a collection of asset IDs 
+const ListTypeTrait = 2;
+// A list created for the sole purpose of setting up a merkle tree based asset swap
+const ListTypeTrade = 3
 
 export class MetaMerkles extends Contract {
 
@@ -41,21 +108,24 @@ export class MetaMerkles extends Contract {
    * @param pmt the fee to cover box storage allocation
    * @param hashedRoot a sha256'd 32 byte merkle tree root
    * @param type an index of the `RootType` enum of the type of the list
-  */
-  addRoot(pmt: PayTxn, hashedRoot: bytes32, type: uint64): void {
+   */
+  addRoot(pmt: PayTxn, hashedRoot: bytes32, schema: uint64, listType: uint64): void {
     const key: RootKey = { address: this.txn.sender, root: hashedRoot };
-    const dataKey: DataKey = this.getDataKey(this.txn.sender, hashedRoot, 'type');
+    const schemaKey: DataKey = this.getDataKey(this.txn.sender, hashedRoot, 'list.schema');
+    const listTypeKey: DataKey = this.getDataKey(this.txn.sender, hashedRoot, 'list.type');
 
     assert(!this.roots(key).exists)
-    assert(!this.data(dataKey).exists)
+    assert(!this.data(schemaKey).exists)
+    assert(!this.data(listTypeKey).exists)
 
     verifyPayTxn(pmt, {
       receiver: this.app.address,
-      amount: rootMinBalance + dataTypeMinBalance,
+      amount: rootMinBalance + schemaMinBalance + listTypeMinBalance,
     })
 
     this.roots(key).create(0);
-    this.data(dataKey).value = itob(type);
+    this.data(schemaKey).value = itob(schema);
+    this.data(listTypeKey).value = itob(listType);
   }
 
   /**
@@ -123,95 +193,19 @@ export class MetaMerkles extends Contract {
   }
 
   /**
-   * verify an inclusion in a merkle tree & ensure the merkle tree
-   * is in reference to a group of asset IDs
+   * verify an inclusion in a merkle tree
    * 
    * @param address the address of the merkle tree root creator
    * @param hashedRoot the sha256'd 32 byte merkle tree root
-   * @param proof the proof for the asset
-   * @param verifyingAsset the `assetID` we're checking against the merkle root
+   * @param proof the proof the hash is included
+   * @param data the data being verified
    * @returns a boolean indicating the check passed or failed
    */
-  verifyAsset(
-    address: Address,
-    hashedRoot: bytes32,
-    proof: string,
-    verifyingAsset: AssetID,
-  ): boolean {
+  verify(address: Address, hashedRoot: bytes32, proof: string, data: string): boolean {
     const rootKey: RootKey = { address: address, root: hashedRoot };
     assert(this.roots(rootKey).exists);
 
-    let type = btoi(this.read(address, hashedRoot, 'type'));
-    assert(type === RootTypeAsset, 'mtree is not type AssetID or Mixed');
-
-    let hash: string = sha256(itob(verifyingAsset)) as string;
-
-    return this.verify(hashedRoot, proof, hash);
-  }
-
-  /**
-   * verify an inclusion in a merkle tree & ensure the merkle tree
-   * is in reference to a group of addresses
-   * 
-   * @param address the address of the merkle tree root creator
-   * @param hashedRoot the sha256'd 32 byte merkle tree root
-   * @param proof the proof for the address
-   * @param verifyingAddress the `Address` we're checking against the merkle root
-   * @returns a boolean indicating the check passed or failed
-   */
-  verifyAddress(
-    address: Address,
-    hashedRoot: bytes32,
-    proof: string,
-    verifyingAddress: Address,
-  ): boolean {
-    const rootKey: RootKey = { address: address, root: hashedRoot };
-    assert(this.roots(rootKey).exists)
-
-    let type = btoi(this.read(address, hashedRoot, 'type'));
-    assert(type === RootTypeAddress, 'mtree is not type Address or Mixed');
-
-    let hash: string = sha256(verifyingAddress) as string;
-
-    return this.verify(hashedRoot, proof, hash);
-  }
-
-  /**
-   * verify an inclusion in a merkle tree & ensure the merkle tree
-   * is in reference to a group of appIDs
-   * 
-   * @param address the address of the merkle tree root creator
-   * @param hashedRoot the sha256'd 32 byte merkle tree root
-   * @param proof the proof for the app
-   * @param verifyingApp the `AppID` we're checking against the merkle root
-   * @returns a boolean indicating the check passed or failed
-   */
-  verifyApp(
-    address: Address,
-    hashedRoot: bytes32,
-    proof: string,
-    verifyingApp: AppID,
-  ): boolean {
-    const rootKey: RootKey = { address: address, root: hashedRoot };
-    assert(this.roots(rootKey).exists)
-
-    let type = btoi(this.read(address, hashedRoot, 'type'));
-    assert((type === RootTypeApp), 'mtree is not type AppID or Mixed');
-
-    let hash: string = sha256(itob(verifyingApp)) as string;
-
-    return this.verify(hashedRoot, proof, hash);
-  }
-
-  /**
-   * verify an inclusion in a merkle tree
-   * 
-   * @param hashedRoot the sha256'd 32 byte merkle tree root
-   * @param proof the proof the hash is included
-   * @param hash the hash of the info being verified
-   * @returns a boolean indicating the check passed or failed
-   */
-  verify(hashedRoot: bytes32, proof: string, hash: string): boolean {
+    let hash = sha256(data) as string;
     for (let i = 0; i < proof.length; i + hashLength) {
       hash = this.hash(hash, extract3(proof, i, hashLength))
     }
@@ -220,7 +214,7 @@ export class MetaMerkles extends Contract {
   }
 
   /**
-   * fetch a metadata property
+   * Fetch a metadata property
    * 
    * @param address the address of the merkle tree root creator
    * @param hashedRoot the sha256'd 32 byte merkle tree root
@@ -233,13 +227,60 @@ export class MetaMerkles extends Contract {
     return this.data(dataKey).value
   }
 
+  /**
+   * Read metadata from box storage and verify the data provided is included
+   * in the merkle tree given a sha256'd 32 byte merkle tree root & a proof
+   * thats pre-computed off chain.
+   * 
+   * verify an inclusion in a merkle tree 
+   * & read an associated key value pair
+   * & check against the underlying data's schema
+   * & check against the underlying data's list type or purpose
+   * 
+   * @param address the address of the merkle tree root creator
+   * @param hashedRoot the sha256'd 32 byte merkle tree root
+   * @param proof the proof the hash is included
+   * @param data the data being verified
+   * @param key the metadata key eg. `Royalty`
+   * @param schema the schema to verify the underlying data shape ( 0 if the caller doesnt care )
+   * @param listType the list type that helps contracts ensure 
+   * the lists purpose isn't being misused ( 0 if the caller doesnt care )
+   * @returns a boolean indicating the check passed or failed
+   */
+  verifiedRead(
+    address: Address,
+    hashedRoot: bytes32,
+    proof: string,
+    data: string,
+    key: string,
+    schema: uint64,
+    listType: uint64,
+  ): string {
+    assert(this.verify(address, hashedRoot, proof, data), 'failed to verify inclusion')
+    if (schema !== 0) assert(this.getListSchema(address, hashedRoot) === schema)
+    if (listType !== 0) assert(this.getListType(address, hashedRoot) === listType)
+
+    return this.read(address, hashedRoot, key);
+  }
   
+  private getListSchema(address: Address, hashedRoot: bytes32): uint64 {
+    const schemaKey: DataKey = this.getDataKey(address, hashedRoot, 'list.schema');
+    assert(this.data(schemaKey).exists)
+    return btoi(this.data(schemaKey).value)
+  }
+
+  private getListType(address: Address, hashedRoot: bytes32): uint64 {
+    const listTypeKey: DataKey = this.getDataKey(address, hashedRoot, 'list.type');
+    assert(this.data(listTypeKey).exists)
+    return btoi(this.data(listTypeKey).value)
+  }
+
   private hash(a: string, b: string): string {
     return sha256(btoi(a) < btoi(b) ? a + b : b + a) as string;
   }
 
   private getBoxCreateMinBalance(a: uint64, b: uint64): uint64 {
-    return 25_00 + (400 * (a + b))
+    return 2_500 + (400 * (a + b))
   }
 
   private getDataKey(address: Address, root: bytes32, key: string): DataKey {
