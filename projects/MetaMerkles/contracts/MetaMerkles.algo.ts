@@ -31,28 +31,28 @@ interface DataKey { address: bytes16, root: bytes16, key: string };
  * Unspecified is a special value that, on verified reads, specifies the caller doesnt care what the schema is
  * this value should not be used when adding merkle roots to the contract
 */
-const SchemaTypeUnspecified = 0;
+export const SchemaTypeUnspecified = 0;
 
 /**
  * Hashes are byte strings
  * 
  * eg. a 32byte address
  */
-const SchemaTypeString = 1;
+export const SchemaTypeString = 1;
 
 /**
  * Hashes are uint64's that represent something like asa IDs or app IDs
  * 
  * eg. 00000000
  */
-const SchemaTypeUint64 = 2;
+export const SchemaTypeUint64 = 2;
 
 /**
  * Hashes are double uint64's, first 8 bytes represent something like an asa ID, latter 8 represent something like an amount
  * 
  * eg. 0000000000000000
  */
-const SchemaTypeDoubleUint64 = 3;
+export const SchemaTypeDoubleUint64 = 3;
 
 /**
  * List Types are required metadata for roots
@@ -80,13 +80,13 @@ const SchemaTypeDoubleUint64 = 3;
 
 // Unspecified is a special value that, on verified reads, specifies the caller doesnt care what the list type is
 // this value should not be used when adding merkle roots to the contract
-const ListTypeUnspecified = 0;
+export const ListTypeUnspecified = 0;
 // Collection list types represent a collection of asset IDs onchain
-const ListTypeCollection = 1;
+export const ListTypeCollection = 1;
 // Trait list types represent a collection of asset IDs 
-const ListTypeTrait = 2;
+export const ListTypeTrait = 2;
 // A list created for the sole purpose of setting up a merkle tree based asset swap
-const ListTypeTrade = 3
+export const ListTypeTrade = 3
 
 export class MetaMerkles extends Contract {
 
