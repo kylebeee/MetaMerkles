@@ -276,7 +276,7 @@ export class MetaMerkles extends Contract {
   }
 
   private hash(a: string, b: string): string {
-    return sha256(btoi(a) < btoi(b) ? a + b : b + a) as string;
+    return sha256(btobigint(a) < btobigint(b) ? a + b : b + a) as string;
   }
 
   private getBoxCreateMinBalance(a: uint64, b: uint64): uint64 {
