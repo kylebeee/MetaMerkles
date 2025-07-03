@@ -1,3 +1,5 @@
+# Development has been moved to the Akita smart contract repository
+
 ## MetaMerkles - Smart contract ingestable metadata on groups of practically any size
 
 WIP Tealscript Contracts for putting Merkle roots on chain & allowing other contracts to verify & fetch metadata against those merkle roots.
